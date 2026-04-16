@@ -26,7 +26,7 @@ function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
     if (!token) return res.status(401).json({ error: 'Необходима авторизация' });
-    
+
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         req.user = decoded;
@@ -50,7 +50,7 @@ const SYSTEM_PROMPTS = {
 
 Верни ТОЛЬКО валидный JSON объект (без markdown, без комментариев) со следующими строковыми ключами:
 {"date": "сегодняшняя дата и время", "visitType": "Первичное или Повторное", "complaints": "жалобы пациента", "anamnesis": "анамнез заболевания", "status": "объективные данные: температура, АД и тд", "diagnosis": "", "recommendations": "рекомендации врача", "patient_summary": "Краткая выписка на ПРОСТОМ языке для пациента: что с ним, что делать, какие лекарства принимать, когда прийти снова. Без медицинских терминов, понятно бабушке."}`,
-    
+
     '035': `Ты медицинский ассистент (МИС Дамумед).
 На основе транскрипции заполни Лист временной нетрудоспособности (Форма № 035/у).
 Транскрипция может содержать метки спикеров [Спикер 0], [Спикер 1].
@@ -79,7 +79,7 @@ const SYSTEM_PROMPTS = {
 // Функция для распознавания аудио через Deepgram (Nova-2 + Speaker Diarization)
 async function transcribeWithDeepgram(audioBuffer) {
     if (audioBuffer.length === 0) return "";
-    
+
     const response = await axios.post(
         'https://api.deepgram.com/v1/listen?' + new URLSearchParams({
             model: 'nova-2',            // Nova-2 — поддерживает diarization
@@ -98,21 +98,21 @@ async function transcribeWithDeepgram(audioBuffer) {
             maxBodyLength: Infinity
         }
     );
-    
+
     const detectedLang = response.data?.results?.channels?.[0]?.detected_language || "?";
     const words = response.data?.results?.channels?.[0]?.alternatives?.[0]?.words || [];
-    
+
     if (words.length === 0) {
         // Fallback: обычный транскрипт без диаризации
         const transcript = response.data?.results?.channels?.[0]?.alternatives?.[0]?.transcript || "";
         console.log(`Deepgram fallback (язык: ${detectedLang}): "${transcript.substring(0, 80)}..."`);
         return transcript;
     }
-    
+
     // Группируем слова по спикерам для читаемой транскрипции
     let formatted = "";
     let currentSpeaker = -1;
-    
+
     for (const word of words) {
         if (word.speaker !== currentSpeaker) {
             currentSpeaker = word.speaker;
@@ -121,7 +121,7 @@ async function transcribeWithDeepgram(audioBuffer) {
         }
         formatted += (word.punctuated_word || word.word) + " ";
     }
-    
+
     const result = formatted.trim();
     console.log(`Deepgram (nova-2 + diarization, язык: ${detectedLang}): "${result.substring(0, 120)}..."`);
     return result;
@@ -133,27 +133,27 @@ app.post('/api/register', async (req, res) => {
     if (!email || !password || !name) {
         return res.status(400).json({ error: 'Заполните все поля' });
     }
-    
+
     const existing = db.getUserByEmail(email);
     if (existing) return res.status(409).json({ error: 'Email уже зарегистрирован' });
-    
+
     const password_hash = await bcrypt.hash(password, 10);
     const userId = db.createUser({ email, password_hash, name });
     const token = jwt.sign({ id: userId, email, name }, JWT_SECRET, { expiresIn: '7d' });
-    
+
     res.json({ token, user: { id: userId, email, name } });
 });
 
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Заполните все поля' });
-    
+
     const user = db.getUserByEmail(email);
     if (!user) return res.status(401).json({ error: 'Неверный email или пароль' });
-    
+
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Неверный email или пароль' });
-    
+
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
     res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
 });
@@ -197,7 +197,7 @@ app.post('/api/magic-edit', authenticateToken, async (req, res) => {
     if (!instruction || !currentForm) {
         return res.status(400).json({ error: 'Нужна форма и инструкция' });
     }
-    
+
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const prompt = `Ты медицинский ассистент. У тебя есть заполненная медицинская форма (JSON) и голосовая инструкция врача.
 Задача: примени инструкцию врача к форме и верни обновлённый JSON.
@@ -212,7 +212,7 @@ ${JSON.stringify(currentForm, null, 2)}
 
     let result = null;
     let lastErr = null;
-    
+
     for (let attempt = 0; attempt < 3; attempt++) {
         try {
             result = await model.generateContent({
@@ -232,12 +232,12 @@ ${JSON.stringify(currentForm, null, 2)}
             }
         }
     }
-    
+
     if (!result) {
         console.error('Magic Edit ошибка API:', lastErr?.message);
         return res.status(503).json({ error: 'Нейросеть сейчас перегружена. Попробуйте еще раз.' });
     }
-    
+
     try {
         const updatedForm = JSON.parse(result.response.text());
         console.log('✨ Magic Edit успешно:', instruction.substring(0, 60));
@@ -256,7 +256,7 @@ wss.on('connection', (ws, req) => {
     const url = new URL(req.url, 'http://localhost');
     const token = url.searchParams.get('token');
     let wsUserId = null;
-    
+
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         wsUserId = decoded.id;
@@ -279,11 +279,11 @@ wss.on('connection', (ws, req) => {
         isProcessing = true;
         console.log(`\n--- Цикл обработки [${new Date().toLocaleTimeString()}] ---`);
         console.log(`Аудио чанков: ${audioChunks.length}`);
-        
+
         try {
             const currentAudioData = Buffer.concat(audioChunks);
             console.log(`Размер аудио: ${currentAudioData.length} байт`);
-            
+
             // 1. STT (Deepgram Whisper Large)
             console.log('➡️  Отправка в Deepgram...');
             const transcriptionText = await transcribeWithDeepgram(currentAudioData);
@@ -292,9 +292,9 @@ wss.on('connection', (ws, req) => {
                 isProcessing = false;
                 return;
             }
-            
+
             fullTextAccumulated = transcriptionText;
-            
+
             // Отправляем сырой текст на фронтенд
             if (ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: 'transcription_update', text: fullTextAccumulated }));
@@ -305,15 +305,15 @@ wss.on('connection', (ws, req) => {
             console.log('➡️  Отправка в Gemini 1.5 Flash...');
             const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
             let prompt = SYSTEM_PROMPTS[sessionData.formType] || SYSTEM_PROMPTS['052'];
-            
+
             // Загружаем кастомный промпт текущего врача
             const userData = db.getUserById(wsUserId);
             if (userData && userData.custom_prompt && userData.custom_prompt.trim()) {
                 prompt += `\n\n=== ПРАВИЛА И ПРИВЫЧКИ ВРАЧА (ВЫСШИЙ ПРИОРИТЕТ) ===\n${userData.custom_prompt}\n`;
             }
-            
+
             const userPrompt = `Транскрипция:\n"${fullTextAccumulated}"\n\nЗаполни форму. Верни ТОЛЬКО JSON без markdown.`;
-            
+
             let geminiResult = null;
             for (let attempt = 0; attempt < 3; attempt++) {
                 try {
@@ -333,7 +333,7 @@ wss.on('connection', (ws, req) => {
                     }
                 }
             }
-            
+
             if (geminiResult) {
                 const jsonResponseText = geminiResult.response.text();
                 console.log('📄 Ответ Gemini (сырой):', jsonResponseText.substring(0, 200));
@@ -347,7 +347,7 @@ wss.on('connection', (ws, req) => {
                     console.error('❌ Ошибка парсинга JSON от Gemini:', jsonResponseText.substring(0, 300));
                 }
             }
-            
+
         } catch (error) {
             console.error('❌ Ошибка в цикле:', error.message || error);
         } finally {
@@ -372,19 +372,19 @@ wss.on('connection', (ws, req) => {
             audioChunks = [];
             fullTextAccumulated = "";
             console.log(`Начат приём. Форма: ${sessionData.formType}`);
-            
+
             // Запускаем автоматический цикл каждые 20 секунд (чтобы не превышать лимиты Gemini)
             processInterval = setInterval(processCurrentAudio, 20000);
         }
         else if (data.type === 'stop') {
             console.log('Остановка приёма. Финальное сохранение...');
             if (processInterval) clearInterval(processInterval);
-            
+
             ws.send(JSON.stringify({ type: 'processing', message: 'Сохраняем данные в БД...' }));
-            
+
             // manualOverrides содержат финальные данные из полей, которые мог отредактировать Врач перед кнопкой "Завершить"
             const finalFormJson = data.manualOverrides || {};
-            
+
             try {
                 // Сохраняем в БД (medCard как JSON-строка)
                 const appointmentId = db.saveAppointment({
