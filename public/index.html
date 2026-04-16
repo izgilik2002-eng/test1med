@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="description" content="MediQaz — AI-ассистент для врачей Казахстана. Автоматическое заполнение медицинских форм Дамумед.">
+    <link rel="manifest" href="/manifest.json">
+    <title>MediQaz — AI Медицинский Ассистент</title>
+    <link rel="stylesheet" href="/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+
+    <!-- ==================== NAVBAR ==================== -->
+    <nav id="mainNav" class="glass-nav hidden">
+        <div class="logo">🩺 MediQaz</div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+            <button onclick="switchPage('recordPage')" class="nav-btn active" id="navBtnRecord">🎙 Запись</button>
+            <button onclick="switchPage('historyPage'); loadHistory();" class="nav-btn" id="navBtnHistory">📋 История</button>
+            <button onclick="switchPage('settingsPage'); loadSettings();" class="nav-btn" id="navBtnSettings">⚙️ Настройки</button>
+            <span class="nav-user" id="navUserName"></span>
+            <button onclick="logout()" class="btn-logout">Выйти</button>
+        </div>
+    </nav>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" style="position:fixed; top:5rem; right:1rem; z-index:50; display:flex; flex-direction:column; gap:0.5rem;"></div>
+
+    <!-- ==================== AUTH PAGE ==================== -->
+    <main id="authPage" class="auth-page">
+        <div class="auth-card animate-fade-in">
+            <div class="auth-logo">
+                <h1>🩺 MediQaz</h1>
+                <p>AI-ассистент для врачей</p>
+            </div>
+
+            <div class="auth-tabs">
+                <button id="tabLogin" onclick="showAuthTab('login')" class="auth-tab active">Войти</button>
+                <button id="tabRegister" onclick="showAuthTab('register')" class="auth-tab">Регистрация</button>
+            </div>
+
+            <form id="loginForm" onsubmit="handleLogin(event)" style="display:grid; gap:0.8rem;">
+                <input type="email" id="loginEmail" placeholder="Email" required class="auth-input">
+                <input type="password" id="loginPassword" placeholder="Пароль" required class="auth-input">
+                <button type="submit" class="btn-auth">Войти</button>
+                <p id="loginError" class="hidden" style="color:#fca5a5; font-size:0.85rem; text-align:center;"></p>
+            </form>
+
+            <form id="registerForm" onsubmit="handleRegister(event)" style="display:grid; gap:0.8rem;" class="hidden">
+                <input type="text" id="regName" placeholder="ФИО врача" required class="auth-input">
+                <input type="email" id="regEmail" placeholder="Email" required class="auth-input">
+                <input type="password" id="regPassword" placeholder="Пароль (6+ символов)" required minlength="6" class="auth-input">
+                <button type="submit" class="btn-auth">Зарегистрироваться</button>
+                <p id="regError" class="hidden" style="color:#fca5a5; font-size:0.85rem; text-align:center;"></p>
+            </form>
+        </div>
+    </main>
+
+    <!-- ==================== RECORD PAGE ==================== -->
+    <main id="recordPage" class="hidden" style="max-width:72rem; margin:0 auto; padding:1.5rem;">
+
+        <!-- Header Row: Patient Info + Controls -->
+        <div class="glass-card mb-4 animate-fade-in">
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:1rem; align-items:end;">
+                <div>
+                    <label style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.3rem; display:block;">Врач</label>
+                    <input type="text" id="doctorName" class="dark-input" placeholder="Д-р Ахметов">
+                </div>
+                <div>
+                    <label style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.3rem; display:block;">Пациент</label>
+                    <input type="text" id="patientName" class="dark-input" placeholder="Иван Иванов">
+                </div>
+                <div>
+                    <label style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.3rem; display:block;">Форма (Дамумед)</label>
+                    <select id="formType" class="dark-select" onchange="renderDynamicForm()">
+                        <option value="052">Форма № 052/у — Амбулаторный прием</option>
+                        <option value="035">Форма № 035/у — Больничный лист</option>
+                        <option value="130">Форма № 130/у — Рецептурный бланк</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Record Controls -->
+            <div style="display:flex; align-items:center; gap:1.5rem; margin-top:1.5rem; justify-content:center; position:relative;">
+                <button id="startBtn" onclick="startRecording()" class="btn-record" title="Начать приём">▶</button>
+                <button id="stopBtn" onclick="stopRecording()" class="btn-stop hidden" title="Остановить и сохранить">⏹</button>
+                <div id="timer" class="timer hidden">00:00</div>
+                <div id="realtimeIndicator" class="hidden" style="position:absolute; right:0; display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:var(--success); font-weight:600;">
+                    <span class="live-dot"></span>
+                    Идет автозаполнение...
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Grid: Transcription + Document Sheet -->
+        <div class="main-grid" style="display:grid; grid-template-columns: 1fr 2fr; gap:1.5rem;">
+
+            <!-- Left Col: Transcription -->
+            <div class="glass-card animate-fade-in" style="padding:1rem;">
+                <label style="font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.5rem; display:block;">Транскрипция (Nova-2)</label>
+                <textarea id="transcriptionBox" readonly class="transcription-box"></textarea>
+            </div>
+
+            <!-- Right Col: Document Sheet (A4 Paper Look) -->
+            <div class="document-sheet animate-fade-in">
+                <div class="doc-header">
+                    <h3 id="docSheetTitle">Форма № 052/у</h3>
+                    <p>Медицинская информационная система Дамумед</p>
+                </div>
+                <div id="dynamicForm" style="display:grid; gap:1rem;">
+                    <!-- Fields rendered by JS -->
+                </div>
+                <div class="doc-watermark">Заполнено с помощью MediQaz AI</div>
+            </div>
+        </div>
+
+        <!-- Patient Summary -->
+        <div id="patientSummaryBlock" class="patient-summary hidden mt-6 animate-fade-in">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                <h3>📋 Выписка для пациента</h3>
+                <button onclick="copyPatientSummary()" class="btn-ghost" style="font-size:0.78rem;">📋 Скопировать</button>
+            </div>
+            <p style="font-size:0.72rem; color:var(--text-muted); margin-bottom:0.5rem;">На простом языке — можно отправить пациенту в WhatsApp</p>
+            <div id="patientSummaryText" class="summary-text"></div>
+        </div>
+
+        <!-- Magic Edit -->
+        <div id="magicEditBlock" class="glass-card mt-4 animate-fade-in">
+            <div style="display:flex; align-items:center; gap:1rem;">
+                <button onclick="startMagicEdit()" class="btn-primary" style="white-space:nowrap;">🪄 Magic Edit</button>
+                <span style="font-size:0.8rem; color:var(--text-muted);">Скажите голосом, что изменить в форме (например: <em>"добавь, что давление 120/80"</em>)</span>
+            </div>
+            <div id="magicEditStatus" class="hidden" style="margin-top:0.75rem; padding:0.75rem; background:rgba(6,182,212,0.08); border-radius:0.5rem; font-size:0.85rem; color:var(--accent);">
+                🎤 Слушаю инструкцию...
+            </div>
+            <div id="magicEditInstruction" class="hidden" style="margin-top:0.5rem; padding:0.5rem 0.75rem; background:rgba(255,255,255,0.04); border-radius:0.5rem; font-size:0.85rem; color:var(--text-secondary);">
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loadingSpinner" class="hidden loading-container mt-6">
+            <svg style="animation:spin 1s linear infinite; width:1.5rem; height:1.5rem;" viewBox="0 0 24 24">
+                <circle style="opacity:0.25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                <path style="opacity:0.75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span id="loadingText">Финальное сохранение документа...</span>
+        </div>
+
+        <!-- Success Block -->
+        <div id="resultBlock" class="hidden glass-card mt-6 animate-fade-in" style="border-left:4px solid var(--success);">
+            <h2 style="font-size:1.15rem; font-weight:700; color:var(--success); margin-bottom:1rem;">✅ Документ успешно сохранен</h2>
+            <div style="display:flex; gap:0.75rem;">
+                <button onclick="switchPage('historyPage'); loadHistory();" class="btn-ghost">Посмотреть в Истории</button>
+                <button onclick="resetForm()" class="btn-primary">🔄 Новый приём</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- ==================== HISTORY PAGE ==================== -->
+    <main id="historyPage" class="hidden" style="max-width:60rem; margin:0 auto; padding:1.5rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.75rem;">
+            <h2 style="font-size:1.5rem; font-weight:700;">📋 История приёмов</h2>
+            <button onclick="switchPage('recordPage')" class="btn-ghost">← Назад к записи</button>
+        </div>
+        <div style="margin-bottom:1rem;">
+            <input type="text" id="historySearch" class="dark-input" placeholder="🔍 Поиск по имени пациента..." oninput="debouncedSearch()" style="max-width:24rem;">
+        </div>
+        <div id="historyList" style="display:grid; gap:0.75rem;"></div>
+    </main>
+
+    <!-- ==================== SETTINGS PAGE ==================== -->
+    <main id="settingsPage" class="hidden" style="max-width:60rem; margin:0 auto; padding:1.5rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+            <h2 style="font-size:1.5rem; font-weight:700;">⚙️ Настройки ИИ</h2>
+            <button onclick="switchPage('recordPage')" class="btn-ghost">← Назад к записи</button>
+        </div>
+        <div class="glass-card animate-fade-in" style="padding:1.5rem;">
+            <label style="font-size:0.85rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.75rem;">
+                Ваши личные правила для автозаполнения (Custom Prompt)
+            </label>
+            <p style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:1rem; line-height:1.5;">
+                Опишите, как ИИ должен заполнять карточки. Например: "Сокращай температуру до Т, артериальное давление до АД. Выноси жалобы на сердце в начало строки." Эта инструкция будет применяться <b>только к вашим</b> приемам.
+            </p>
+            <textarea id="customPromptInput" class="transcription-box" style="min-height:150px; margin-bottom:1rem;" placeholder="Введите ваши инструкции..."></textarea>
+            <div style="display:flex; gap:1rem; align-items:center;">
+                <button onclick="saveSettings()" class="btn-primary" id="saveSettingsBtn">💾 Сохранить</button>
+                <div id="settingsMessage" class="hidden" style="color:var(--success); font-size:0.85rem; font-weight:600;">✅ Сохранено</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ==================== HISTORY MODAL ==================== -->
+    <div id="historyModal" class="hidden modal-overlay" style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:1rem; z-index:50;">
+        <div class="modal-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:1.25rem 1.5rem; border-bottom:1px solid var(--border);">
+                <h3 style="font-size:1.1rem; font-weight:700;">Детали приёма</h3>
+                <button onclick="closeModal()" style="background:none; border:none; color:var(--text-muted); font-size:1.5rem; cursor:pointer; padding:0.25rem;">&times;</button>
+            </div>
+
+            <div style="padding:1.5rem; overflow-y:auto; flex:1;" id="historyPrintArea">
+                <div style="text-align:center; margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:2px solid var(--border);">
+                    <h2 style="font-size:1.1rem; font-weight:700;" id="printDocTitle">Медицинский Документ</h2>
+                    <p style="color:var(--text-muted); font-size:0.85rem;" id="printDocSubtitle"></p>
+                </div>
+                <div id="historyFormView" style="display:grid; gap:0.75rem;"></div>
+            </div>
+
+            <div style="display:flex; gap:0.75rem; padding:1rem 1.5rem; border-top:1px solid var(--border);">
+                <button onclick="exportToPDF('historyPrintArea')" class="btn-primary">📥 Скачать PDF</button>
+                <button onclick="closeModal()" class="btn-ghost">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== JAVASCRIPT ==================== -->
+    <script>
+        // ========== АВТОРИЗАЦИЯ ==========
+        function getToken() { return localStorage.getItem('mediqaz_token'); }
+        function getUser() { try { return JSON.parse(localStorage.getItem('mediqaz_user')); } catch { return null; } }
+
+        function saveAuth(token, user) {
+            localStorage.setItem('mediqaz_token', token);
+            localStorage.setItem('mediqaz_user', JSON.stringify(user));
+        }
+
+        function clearAuth() {
+            localStorage.removeItem('mediqaz_token');
+            localStorage.removeItem('mediqaz_user');
+        }
+
+        function authFetch(url, options = {}) {
+            const token = getToken();
+            if (!options.headers) options.headers = {};
+            if (token) options.headers['Authorization'] = `Bearer ${token}`;
+            if (!options.headers['Content-Type'] && !(options.body instanceof FormData)) {
+                options.headers['Content-Type'] = 'application/json';
+            }
+            return fetch(url, options);
+        }
+
+        function showAuthTab(tab) {
+            if (tab === 'login') {
+                document.getElementById('loginForm').classList.remove('hidden');
+                document.getElementById('registerForm').classList.add('hidden');
+                document.getElementById('tabLogin').classList.add('active');
+                document.getElementById('tabRegister').classList.remove('active');
+            } else {
+                document.getElementById('loginForm').classList.add('hidden');
+                document.getElementById('registerForm').classList.remove('hidden');
+                document.getElementById('tabRegister').classList.add('active');
+                document.getElementById('tabLogin').classList.remove('active');
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const errEl = document.getElementById('loginError');
+            errEl.classList.add('hidden');
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: document.getElementById('loginEmail').value,
+                        password: document.getElementById('loginPassword').value
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) { errEl.innerText = data.error; errEl.classList.remove('hidden'); return; }
+                saveAuth(data.token, data.user);
+                enterApp();
+            } catch (err) { errEl.innerText = 'Ошибка сервера'; errEl.classList.remove('hidden'); }
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const errEl = document.getElementById('regError');
+            errEl.classList.add('hidden');
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: document.getElementById('regName').value,
+                        email: document.getElementById('regEmail').value,
+                        password: document.getElementById('regPassword').value
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) { errEl.innerText = data.error; errEl.classList.remove('hidden'); return; }
+                saveAuth(data.token, data.user);
+                enterApp();
+            } catch (err) { errEl.innerText = 'Ошибка сервера'; errEl.classList.remove('hidden'); }
+        }
+
+        function enterApp() {
+            const user = getUser();
+            document.getElementById('authPage').classList.add('hidden');
+            document.getElementById('mainNav').classList.remove('hidden');
+            document.getElementById('recordPage').classList.remove('hidden');
+            document.getElementById('navUserName').innerText = user ? user.name : '';
+            if (user && user.name) document.getElementById('doctorName').value = user.name;
+            renderDynamicForm();
+            connectWS();
+        }
+
+        function logout() {
+            clearAuth();
+            if (ws) ws.close();
+            document.getElementById('mainNav').classList.add('hidden');
+            document.getElementById('recordPage').classList.add('hidden');
+            document.getElementById('historyPage').classList.add('hidden');
+            document.getElementById('settingsPage')?.classList.add('hidden');
+            document.getElementById('authPage').classList.remove('hidden');
+        }
+
+        // ========== FORMS CONFIG ==========
+        const FORMS = {
+            '052': {
+                title: 'Форма № 052/у',
+                subtitle: 'Амбулаторный прием',
+                fields: [
+                    { id: 'date', label: 'Дата и время приема', type: 'text', placeholder: 'ДД.ММ.ГГГГ, ЧЧ:ММ' },
+                    { id: 'visitType', label: 'Тип посещения', type: 'text', placeholder: 'Первичное / Повторное' },
+                    { id: 'complaints', label: 'Жалобы', type: 'textarea', placeholder: 'Текст жалоб...' },
+                    { id: 'anamnesis', label: 'Анамнез заболевания', type: 'textarea', placeholder: 'Когда заболел, как развивалось...' },
+                    { id: 'status', label: 'Объективные данные (Статус)', type: 'textarea', placeholder: 'Состояние, Т-тела, АД...' },
+                    { id: 'diagnosis', label: 'Диагноз', type: 'text', placeholder: 'Код и название диагноза' },
+                    { id: 'recommendations', label: 'Рекомендации / Назначения', type: 'textarea', placeholder: 'Режим, диета, лекарства' }
+                ]
+            },
+            '035': {
+                title: 'Форма № 035/у',
+                subtitle: 'Больничный лист',
+                fields: [
+                    { id: 'workplace', label: 'Место работы пациента', type: 'text', placeholder: 'Название организации' },
+                    { id: 'reason', label: 'Причина нетрудоспособности', type: 'text', placeholder: 'Заболевание / Травма' },
+                    { id: 'regime', label: 'Режим', type: 'text', placeholder: 'Амбулаторный / Стационарный' },
+                    { id: 'startDate', label: 'Дата начала освобождения', type: 'text', placeholder: 'ДД.ММ.ГГГГ' },
+                    { id: 'endDate', label: 'Дата окончания', type: 'text', placeholder: 'ДД.ММ.ГГГГ' },
+                    { id: 'doctorInfo', label: 'ФИО лечащего врача', type: 'text', placeholder: 'Врач' }
+                ]
+            },
+            '130': {
+                title: 'Рецептурный бланк № 130/у',
+                subtitle: 'Назначение препарата',
+                fields: [
+                    { id: 'recipeType', label: 'Тип рецепта', type: 'text', placeholder: 'Обычный / Бесплатный' },
+                    { id: 'medicineName', label: 'Наименование ЛС (МНН)', type: 'text', placeholder: 'Например: Xylometazoline' },
+                    { id: 'dosage', label: 'Дозировка', type: 'text', placeholder: '0.1%, 10 мл' },
+                    { id: 'usage', label: 'Способ применения (Сигнатура)', type: 'textarea', placeholder: 'По 2 капли 3 раза в день' },
+                    { id: 'validity', label: 'Срок действия рецепта', type: 'text', placeholder: '15 дней / 30 дней' }
+                ]
+            }
+        };
+
+        // ========== GLOBALS ==========
+        let ws;
+        let mediaRecorder = null;
+        let micStream = null;
+        let timerInterval;
+        let seconds = 0;
+        let isRecording = false;
+
+        const escapeHtml = (s) => String(s || '')
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+
+        // ========== DYNAMIC FORM RENDER ==========
+        function renderDynamicForm() {
+            const formType = document.getElementById('formType').value;
+            const container = document.getElementById('dynamicForm');
+            const config = FORMS[formType];
+
+            // Update document sheet title
+            document.getElementById('docSheetTitle').innerText = config.title;
+
+            container.innerHTML = config.fields.map(field => {
+                if (field.type === 'textarea') {
+                    return `<div>
+                        <label>${escapeHtml(field.label)}</label>
+                        <textarea id="field_${field.id}" rows="3" placeholder="${escapeHtml(field.placeholder)}"></textarea>
+                    </div>`;
+                } else {
+                    return `<div>
+                        <label>${escapeHtml(field.label)}</label>
+                        <input type="text" id="field_${field.id}" placeholder="${escapeHtml(field.placeholder)}">
+                    </div>`;
+                }
+            }).join('');
+        }
+
+        function updateFormFields(dataJson) {
+            Object.keys(dataJson).forEach(key => {
+                if (key === 'patient_summary') {
+                    const summaryBlock = document.getElementById('patientSummaryBlock');
+                    const summaryText = document.getElementById('patientSummaryText');
+                    if (dataJson[key] && dataJson[key].trim()) {
+                        summaryText.innerText = dataJson[key];
+                        summaryBlock.classList.remove('hidden');
+                    }
+                    return;
+                }
+                const el = document.getElementById(`field_${key}`);
+                if (el) {
+                    const oldVal = el.value.trim();
+                    const newVal = dataJson[key] || '';
+                    if (oldVal !== newVal && newVal !== '') {
+                        el.value = newVal;
+                        el.classList.remove('updated-field');
+                        void el.offsetWidth;
+                        el.classList.add('updated-field');
+                    }
+                }
+            });
+        }
+
+        // ========== WEBSOCKET ==========
+        function connectWS() {
+            const token = getToken();
+            if (!token) return;
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}?token=${token}`);
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'transcription_update') {
+                    const box = document.getElementById('transcriptionBox');
+                    box.value = data.text;
+                    box.scrollTop = box.scrollHeight;
+                }
+                else if (data.type === 'form_update') { updateFormFields(data.formJson); }
+                else if (data.type === 'processing') {
+                    document.getElementById('loadingSpinner').classList.remove('hidden');
+                    document.getElementById('loadingText').innerText = data.message;
+                }
+                else if (data.type === 'success') {
+                    document.getElementById('loadingSpinner').classList.add('hidden');
+                    document.getElementById('resultBlock').classList.remove('hidden');
+                    showToast('Документ успешно сохранен', 'success');
+                }
+                else if (data.type === 'error') {
+                    document.getElementById('loadingSpinner').classList.add('hidden');
+                    showToast(data.message, 'error');
+                }
+            };
+            ws.onclose = () => { if (getToken()) setTimeout(connectWS, 3000); };
+            ws.onerror = () => showToast('Ошибка соединения', 'error');
+        }
+
+        // ========== INIT ==========
+        document.addEventListener('DOMContentLoaded', () => {
+            if (getToken()) { enterApp(); }
+            // Register Service Worker for PWA
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/sw.js').catch(() => {});
+            }
+        });
+
+        // ========== RECORDING ==========
+        async function startRecording() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showToast('Нет соединения с сервером', 'error'); return;
+            }
+            const docName = document.getElementById('doctorName').value.trim();
+            const patName = document.getElementById('patientName').value.trim();
+            const formType = document.getElementById('formType').value;
+            if (!docName || !patName) { showToast('Заполните имена врача и пациента', 'error'); return; }
+
+            try {
+                micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(micStream);
+                ws.send(JSON.stringify({ type: 'start', payload: { doctorName: docName, patientName: patName, format: 'webm', formType } }));
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) ws.send(event.data);
+                };
+                mediaRecorder.start(1000);
+                isRecording = true;
+
+                document.getElementById('formType').disabled = true;
+                document.getElementById('startBtn').classList.add('hidden');
+                document.getElementById('stopBtn').classList.remove('hidden');
+                document.getElementById('timer').classList.remove('hidden');
+                document.getElementById('realtimeIndicator').classList.remove('hidden');
+                document.getElementById('resultBlock').classList.add('hidden');
+                document.getElementById('patientSummaryBlock').classList.add('hidden');
+                document.getElementById('transcriptionBox').value = '';
+                renderDynamicForm();
+
+                seconds = 0;
+                timerInterval = setInterval(() => {
+                    seconds++;
+                    const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+                    const s = String(seconds % 60).padStart(2, '0');
+                    document.getElementById('timer').innerText = `${m}:${s}`;
+                }, 1000);
+            } catch (err) {
+                showToast('Ошибка доступа к микрофону', 'error');
+                console.error(err);
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+            if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+            clearInterval(timerInterval);
+            isRecording = false;
+
+            document.getElementById('startBtn').classList.remove('hidden');
+            document.getElementById('stopBtn').classList.add('hidden');
+            document.getElementById('timer').classList.add('hidden');
+            document.getElementById('realtimeIndicator').classList.add('hidden');
+            document.getElementById('loadingSpinner').classList.remove('hidden');
+            document.getElementById('loadingText').innerText = 'Сохранение документа в базу...';
+
+            setTimeout(() => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    const formType = document.getElementById('formType').value;
+                    const config = FORMS[formType];
+                    let finalDataMap = {};
+                    config.fields.forEach(field => {
+                        finalDataMap[field.id] = document.getElementById(`field_${field.id}`).value;
+                    });
+                    const summaryEl = document.getElementById('patientSummaryText');
+                    if (summaryEl && summaryEl.innerText.trim()) finalDataMap.patient_summary = summaryEl.innerText;
+                    ws.send(JSON.stringify({ type: 'stop', manualOverrides: finalDataMap }));
+                }
+            }, 500);
+        }
+
+        function resetForm() {
+            document.getElementById('patientName').value = '';
+            document.getElementById('transcriptionBox').value = '';
+            document.getElementById('resultBlock').classList.add('hidden');
+            document.getElementById('patientSummaryBlock').classList.add('hidden');
+            document.getElementById('patientSummaryText').innerText = '';
+            document.getElementById('timer').innerText = '00:00';
+            document.getElementById('formType').disabled = false;
+            renderDynamicForm();
+        }
+
+        // ========== UTILITIES ==========
+        function switchPage(pageId) {
+            document.getElementById('recordPage').classList.add('hidden');
+            document.getElementById('historyPage').classList.add('hidden');
+            document.getElementById('settingsPage').classList.add('hidden');
+            document.getElementById(pageId).classList.remove('hidden');
+            // Update nav active state
+            document.getElementById('navBtnRecord').classList.toggle('active', pageId === 'recordPage');
+            document.getElementById('navBtnHistory').classList.toggle('active', pageId === 'historyPage');
+            document.getElementById('navBtnSettings').classList.toggle('active', pageId === 'settingsPage');
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerText = message;
+            container.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 500); }, 3000);
+        }
+
+        function copyPatientSummary() {
+            const text = document.getElementById('patientSummaryText').innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Выписка скопирована — отправьте в WhatsApp!', 'success');
+            }).catch(() => showToast('Ошибка копирования', 'error'));
+        }
+
+        function exportToPDF(elementId) {
+            const element = document.getElementById(elementId);
+            html2pdf().set({
+                margin: 10,
+                filename: `МедКарта_${new Date().toLocaleDateString('ru-RU')}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            }).from(element).save();
+            showToast('Скачивание PDF...', 'success');
+        }
+
+        // ========== SETTINGS ==========
+        async function loadSettings() {
+            try {
+                const res = await authFetch('/api/me/prompt');
+                const data = await res.json();
+                document.getElementById('customPromptInput').value = data.custom_prompt || '';
+            } catch (e) { showToast('Ошибка загрузки настроек', 'error'); }
+        }
+
+        async function saveSettings() {
+            const btn = document.getElementById('saveSettingsBtn');
+            const msg = document.getElementById('settingsMessage');
+            const prompt = document.getElementById('customPromptInput').value;
+            btn.disabled = true;
+            btn.innerText = 'Сохранение...';
+            try {
+                const res = await authFetch('/api/me/prompt', {
+                    method: 'POST',
+                    body: JSON.stringify({ prompt })
+                });
+                if (res.ok) {
+                    msg.classList.remove('hidden');
+                    showToast('Настройки сохранены', 'success');
+                    setTimeout(() => msg.classList.add('hidden'), 3000);
+                } else { throw new Error('Ошибка'); }
+            } catch (e) {
+                showToast('Ошибка сохранения настроек', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = '💾 Сохранить';
+            }
+        }
+
+        // ========== HISTORY ==========
+        async function loadHistory() {
+            const list = document.getElementById('historyList');
+            list.innerHTML = '<p style="color:var(--text-muted);">Загрузка...</p>';
+            try {
+                const searchQuery = document.getElementById('historySearch')?.value || '';
+                const res = await authFetch(`/api/appointments?search=${encodeURIComponent(searchQuery)}`);
+                const data = await res.json();
+                if (data.length === 0) {
+                    list.innerHTML = '<p style="color:var(--text-muted);">История пуста. Проведите первый приём!</p>';
+                    return;
+                }
+                list.innerHTML = data.map(app => `
+                    <div class="history-card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+                        <div>
+                            <p style="font-weight:700; font-size:1rem;">Пациент: ${escapeHtml(app.patient_name)}</p>
+                            <p style="font-size:0.8rem; color:var(--text-muted);">Врач: ${escapeHtml(app.doctor_name)} · ${new Date(app.created_at).toLocaleString('ru-RU')} · ${escapeHtml(app.form_type || '052')}</p>
+                        </div>
+                        <div style="display:flex; gap:0.5rem;">
+                            <button onclick="openModal(${Number(app.id)})" class="btn-primary" style="font-size:0.8rem; padding:0.5rem 1rem;">Бланк</button>
+                            <button onclick="deleteAppointment(${Number(app.id)})" class="btn-ghost" style="font-size:0.8rem; color:#fca5a5;">Удалить</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) { showToast('Ошибка загрузки истории', 'error'); }
+        }
+
+        async function openModal(id) {
+            try {
+                const res = await authFetch(`/api/appointments/${id}`);
+                const data = await res.json();
+                let formData = {};
+                try { formData = JSON.parse(data.med_card); } catch(e) { formData = { _raw: data.med_card }; }
+
+                const formType = data.form_type || '052';
+                const config = FORMS[formType] || FORMS['052'];
+
+                document.getElementById('printDocTitle').innerText = config.title;
+                document.getElementById('printDocSubtitle').innerText = `Пациент: ${data.patient_name} · ${new Date(data.date).toLocaleDateString('ru-RU')}`;
+
+                let viewHtml = '';
+                if (formData._raw) {
+                    viewHtml = `<div style="background:rgba(255,255,255,0.04); padding:1rem; border-radius:0.5rem; border:1px solid var(--border);">${escapeHtml(formData._raw)}</div>`;
+                } else {
+                    viewHtml = config.fields.map(field => `
+                        <div style="padding-bottom:0.75rem; margin-bottom:0.75rem; border-bottom:1px solid var(--border);">
+                            <span style="color:var(--text-muted); font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:0.25rem;">${escapeHtml(field.label)}</span>
+                            <span style="color:var(--text-primary); display:block;">${escapeHtml(formData[field.id] || '—')}</span>
+                        </div>
+                    `).join('');
+
+                    if (formData.patient_summary) {
+                        viewHtml += `
+                        <div class="patient-summary" style="margin-top:1rem;">
+                            <span style="color:var(--accent); font-size:0.72rem; font-weight:700; text-transform:uppercase; display:block; margin-bottom:0.5rem;">📋 Выписка для пациента</span>
+                            <span style="color:var(--text-secondary); display:block; line-height:1.6; white-space:pre-wrap;">${escapeHtml(formData.patient_summary)}</span>
+                        </div>`;
+                    }
+                }
+                document.getElementById('historyFormView').innerHTML = viewHtml;
+                document.getElementById('historyModal').classList.remove('hidden');
+            } catch (e) { showToast('Ошибка загрузки карты', 'error'); }
+        }
+
+        function closeModal() { document.getElementById('historyModal').classList.add('hidden'); }
+
+        async function deleteAppointment(id) {
+            if (!confirm('Точно удалить этот приём?')) return;
+            try {
+                const res = await authFetch(`/api/appointments/${id}`, { method: 'DELETE' });
+                if (res.ok) { showToast('Приём удален', 'success'); loadHistory(); }
+            } catch (e) { showToast('Ошибка удаления', 'error'); }
+        }
+
+        // ========== SEARCH ==========
+        let searchTimeout = null;
+        function debouncedSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => loadHistory(), 400);
+        }
+
+        // ========== MAGIC EDIT ==========
+        function startMagicEdit() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                // Fallback: текстовый ввод
+                const instruction = prompt('Введите инструкцию (например: "добавь, что давление 120/80")');
+                if (instruction) applyMagicEdit(instruction);
+                return;
+            }
+            
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'ru-RU';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            
+            document.getElementById('magicEditStatus').classList.remove('hidden');
+            document.getElementById('magicEditStatus').innerHTML = '🎤 Слушаю инструкцию...';
+            
+            recognition.onresult = (event) => {
+                const instruction = event.results[0][0].transcript;
+                document.getElementById('magicEditStatus').classList.add('hidden');
+                document.getElementById('magicEditInstruction').classList.remove('hidden');
+                document.getElementById('magicEditInstruction').innerHTML = `📝 <strong>"${escapeHtml(instruction)}"</strong> — Отправляю в Gemini...`;
+                applyMagicEdit(instruction);
+            };
+            
+            recognition.onerror = () => {
+                document.getElementById('magicEditStatus').classList.add('hidden');
+                showToast('Не удалось распознать речь', 'error');
+            };
+            
+            recognition.onend = () => {
+                document.getElementById('magicEditStatus').classList.add('hidden');
+            };
+            
+            recognition.start();
+        }
+        
+        async function applyMagicEdit(instruction) {
+            const formType = document.getElementById('formType').value;
+            const config = FORMS[formType];
+            let currentForm = {};
+            config.fields.forEach(f => {
+                currentForm[f.id] = document.getElementById(`field_${f.id}`).value;
+            });
+            
+            try {
+                const res = await authFetch('/api/magic-edit', {
+                    method: 'POST',
+                    body: JSON.stringify({ currentForm, instruction, formType })
+                });
+                const data = await res.json();
+                if (!res.ok) { showToast(data.error, 'error'); return; }
+                
+                updateFormFields(data.updatedForm);
+                document.getElementById('magicEditInstruction').innerHTML = `✅ <strong>"${escapeHtml(instruction)}"</strong> — Применено!`;
+                setTimeout(() => document.getElementById('magicEditInstruction').classList.add('hidden'), 3000);
+                showToast('Magic Edit применён!', 'success');
+            } catch (err) {
+                showToast('Ошибка Magic Edit', 'error');
+            }
+        }
+    </script>
+
+    <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+</body>
+</html>

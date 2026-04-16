@@ -1,0 +1,9 @@
+node_modules
+.env
+mediqaz.db
+mediqaz.db-journal
+npm-debug.log
+.DS_Store
+dist
+build
+.vscode

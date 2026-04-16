@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  mediqaz:
+    build: .
+    container_name: mediqaz_app
+    restart: unless-stopped
+    ports:
+      - "80:3000"
+    environment:
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - DB_PATH=/app/data/mediqaz.db
+    volumes:
+      - ./mediqaz_data:/app/data
