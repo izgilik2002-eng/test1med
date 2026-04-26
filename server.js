@@ -3,11 +3,21 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
-const axios = require('axios');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const Groq = require('groq-sdk');
 const db = require('./database');
+const { buildMagicEditPrompt } = require('./prompts');
+const { authenticateToken, authenticateWs, signToken } = require('./auth');
+const Session = require('./session');
+const Groq = require('groq-sdk');
+
+// Fail-fast: сервер не запустится без критически важных ключей
+const REQUIRED_ENV = ['DEEPGRAM_API_KEY', 'GROQ_API_KEY', 'JWT_SECRET'];
+const missing = REQUIRED_ENV.filter(k => !process.env[k]);
+if (missing.length) {
+    console.error(`FATAL: отсутствуют переменные окружения: ${missing.join(', ')}`);
+    console.error('Скопируйте .env.example в .env и заполните значения.');
+    process.exit(1);
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -16,117 +26,7 @@ const wss = new WebSocket.Server({ server });
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Инициализация API
-const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-const JWT_SECRET = process.env.JWT_SECRET || 'mediqaz-fallback-secret';
-
-// JWT Middleware — защита маршрутов
-function authenticateToken(req, res, next) {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'Необходима авторизация' });
-
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        req.user = decoded;
-        next();
-    } catch (err) {
-        return res.status(403).json({ error: 'Токен недействителен' });
-    }
-}
-
-const groqJsonConfig = {
-    response_format: { type: "json_object" }
-};
-
-// Промпты для каждой формы
-const SYSTEM_PROMPTS = {
-    '052': `Ты опытный врач-ассистент в Казахстане (МИС Дамумед). Язык: русско-казахский микс.
-На основе транскрипции разговора врача и пациента заполни поля Формы № 052/у (Амбулаторный прием).
-Не придумывай данные, которых нет в тексте. Пиши кратко, медицинским языком.
-Транскрипция может содержать метки спикеров [Спикер 0], [Спикер 1] — используй их для точного понимания, кто врач, а кто пациент.
-
-Верни ТОЛЬКО валидный JSON объект (без markdown, без комментариев) со следующими строковыми ключами:
-{"date": "сегодняшняя дата и время", "visitType": "Первичное или Повторное", "complaints": "жалобы пациента", "anamnesis": "анамнез заболевания", "status": "объективные данные: температура, АД и тд", "diagnosis": "", "recommendations": "рекомендации врача", "patient_summary": "Краткая выписка на ПРОСТОМ языке для пациента: что с ним, что делать, какие лекарства принимать, когда прийти снова. Без медицинских терминов, понятно бабушке."}`,
-
-    '035': `Ты медицинский ассистент (МИС Дамумед).
-На основе транскрипции заполни Лист временной нетрудоспособности (Форма № 035/у).
-Транскрипция может содержать метки спикеров [Спикер 0], [Спикер 1].
-Верни строго валидный JSON со следующими ключами:
-- workplace: Место работы пациента
-- reason: Причина нетрудоспособности (Заболевание / Травма / Уход за ребенком)
-- regime: Режим (Амбулаторный / Стационарный)
-- startDate: Дата начала освобождения (сегодняшняя дата, если не сказано иное)
-- endDate: Дата окончания (предполагаемая)
-- doctorInfo: ФИО лечащего врача (если известно)
-- patient_summary: Краткая выписка на ПРОСТОМ языке для пациента: на сколько дней больничный, что делать, когда выйти на работу`,
-
-    '130': `Ты медицинский ассистент (МИС Дамумед).
-На основе транскрипции разговора выдели данные для Рецептурного бланка (Форма № 130/у).
-Транскрипция может содержать метки спикеров [Спикер 0], [Спикер 1].
-Верни строго валидный JSON со следующими ключами:
-- recipeType: Тип рецепта (Обычный / Бесплатный)
-- medicineName: Наименование ЛС (МНН) - например Xylometazoline
-- dosage: Дозировка
-- usage: Способ применения (Сигнатура) - например "По 2 капли 3 раза в день"
-- validity: Срок действия рецепта (15 дней / 30 дней)
-- patient_summary: Краткая инструкция на ПРОСТОМ языке для пациента: какое лекарство купить, как принимать, сколько дней`
-};
-
-
-// Функция для распознавания аудио через Deepgram (Nova-2 + Speaker Diarization)
-async function transcribeWithDeepgram(audioBuffer) {
-    if (audioBuffer.length === 0) return "";
-
-    const response = await axios.post(
-        'https://api.deepgram.com/v1/listen?' + new URLSearchParams({
-            model: 'nova-2',            // Nova-2 — поддерживает diarization
-            diarize: 'true',            // Разделение спикеров (Врач / Пациент)
-            detect_language: 'true',    // Авто-определение языка
-            punctuate: 'true',          // Автопунктуация (запятые, точки)
-            smart_format: 'true',       // Умное форматирование чисел, дат
-        }).toString(),
-        audioBuffer,
-        {
-            headers: {
-                'Authorization': `Token ${DEEPGRAM_API_KEY}`,
-                'Content-Type': 'audio/webm',
-            },
-            timeout: 60000,
-            maxBodyLength: Infinity
-        }
-    );
-
-    const detectedLang = response.data?.results?.channels?.[0]?.detected_language || "?";
-    const words = response.data?.results?.channels?.[0]?.alternatives?.[0]?.words || [];
-
-    if (words.length === 0) {
-        // Fallback: обычный транскрипт без диаризации
-        const transcript = response.data?.results?.channels?.[0]?.alternatives?.[0]?.transcript || "";
-        console.log(`Deepgram fallback (язык: ${detectedLang}): "${transcript.substring(0, 80)}..."`);
-        return transcript;
-    }
-
-    // Группируем слова по спикерам для читаемой транскрипции
-    let formatted = "";
-    let currentSpeaker = -1;
-
-    for (const word of words) {
-        if (word.speaker !== currentSpeaker) {
-            currentSpeaker = word.speaker;
-            if (formatted) formatted += "\n";
-            // Склейка и замена ролей для понятного текста
-            const role = currentSpeaker === 0 ? 'Врач' : (currentSpeaker === 1 ? 'Пациент' : `Спикер ${currentSpeaker}`);
-            formatted += `${role}: `;
-        }
-        formatted += (word.punctuated_word || word.word) + " ";
-    }
-
-    const result = formatted.trim();
-    console.log(`Deepgram (nova-2 + diarization, язык: ${detectedLang}): "${result.substring(0, 120)}..."`);
-    return result;
-}
 
 // ========== AUTH API ==========
 app.post('/api/register', async (req, res) => {
@@ -139,10 +39,17 @@ app.post('/api/register', async (req, res) => {
     if (existing) return res.status(409).json({ error: 'Email уже зарегистрирован' });
 
     const password_hash = await bcrypt.hash(password, 10);
-    const userId = db.createUser({ email, password_hash, name });
-    const token = jwt.sign({ id: userId, email, name }, JWT_SECRET, { expiresIn: '7d' });
-
-    res.json({ token, user: { id: userId, email, name } });
+    try {
+        const userId = db.createUser({ email, password_hash, name });
+        const token = signToken({ id: userId, email, name });
+        res.json({ token, user: { id: userId, email, name } });
+    } catch (err) {
+        if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' || err.code === 'SQLITE_CONSTRAINT') {
+            return res.status(409).json({ error: 'Email уже зарегистрирован' });
+        }
+        console.error('Ошибка регистрации:', err);
+        res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+    }
 });
 
 app.post('/api/login', async (req, res) => {
@@ -155,7 +62,7 @@ app.post('/api/login', async (req, res) => {
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Неверный email или пароль' });
 
-    const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+    const token = signToken(user);
     res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
 });
 
@@ -199,16 +106,7 @@ app.post('/api/magic-edit', authenticateToken, async (req, res) => {
         return res.status(400).json({ error: 'Нужна форма и инструкция' });
     }
 
-    const prompt = `Ты медицинский ассистент. У тебя есть заполненная медицинская форма (JSON) и голосовая инструкция врача.
-Задача: примени инструкцию врача к форме и верни обновлённый JSON.
-Не меняй поля, которые не затронуты инструкцией.
-
-Текущая форма:
-${JSON.stringify(currentForm, null, 2)}
-
-Инструкция врача: "${instruction}"
-
-Верни обновлённый JSON.`;
+    const prompt = buildMagicEditPrompt(currentForm, instruction);
 
     let chatCompletion = null;
     let lastErr = null;
@@ -216,15 +114,14 @@ ${JSON.stringify(currentForm, null, 2)}
     for (let attempt = 0; attempt < 3; attempt++) {
         try {
             chatCompletion = await groq.chat.completions.create({
-                messages: [{ role: "user", content: prompt }],
-                model: "llama-3.3-70b-versatile",
-                response_format: { type: "json_object" }
+                messages: [{ role: 'user', content: prompt }],
+                model: 'llama-3.3-70b-versatile',
+                response_format: { type: 'json_object' }
             });
-            break; // Успешно
+            break;
         } catch (err) {
             lastErr = err;
             const statusCode = err.status || err.httpStatusCode || 0;
-            // 503 Service Unavailable или 429 Too Many Requests
             if ((statusCode === 429 || statusCode === 503) && attempt < 2) {
                 console.log(`⏳ Magic Edit: Ждём 5 секунд и повторяем (попытка ${attempt + 2}/3)...`);
                 await new Promise(r => setTimeout(r, 5000));
@@ -249,172 +146,21 @@ ${JSON.stringify(currentForm, null, 2)}
     }
 });
 
-// WebSocket для Real-Time обработки
-const MAX_BINARY_MSG_BYTES = 2 * 1024 * 1024;
-
+// ========== WEBSOCKET ==========
 wss.on('connection', (ws, req) => {
-    // Аутентификация WebSocket по токену из URL
-    const url = new URL(req.url, 'http://localhost');
-    const token = url.searchParams.get('token');
-    let wsUserId = null;
-
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        wsUserId = decoded.id;
-        console.log(`Клиент подключён (врач ID: ${wsUserId})`);
-    } catch (err) {
+    const userId = authenticateWs(req);
+    if (!userId) {
         console.log('WebSocket: неавторизованное подключение, закрываем.');
         ws.close(4001, 'Unauthorized');
         return;
     }
 
-    let audioChunks = [];
-    let sessionData = {};
-    let processInterval = null;
-    let isProcessing = false;
-    let fullTextAccumulated = "";
+    console.log(`Клиент подключён (врач ID: ${userId})`);
+    const session = new Session(ws, userId);
 
-    // Асинхронная функция обработки накопившегося аудио
-    const processCurrentAudio = async () => {
-        if (isProcessing || audioChunks.length === 0) return;
-        isProcessing = true;
-        console.log(`\n--- Цикл обработки [${new Date().toLocaleTimeString()}] ---`);
-        console.log(`Аудио чанков: ${audioChunks.length}`);
-
-        try {
-            const currentAudioData = Buffer.concat(audioChunks);
-            console.log(`Размер аудио: ${currentAudioData.length} байт`);
-
-            // 1. STT (Deepgram Whisper Large)
-            console.log('➡️  Отправка в Deepgram...');
-            const transcriptionText = await transcribeWithDeepgram(currentAudioData);
-            if (!transcriptionText.trim()) {
-                console.log('⚠️  Deepgram вернул пустой текст, пропускаем.');
-                isProcessing = false;
-                return;
-            }
-
-            fullTextAccumulated = transcriptionText;
-
-            // Отправляем сырой текст на фронтенд
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'transcription_update', text: fullTextAccumulated }));
-                console.log('✅ Текст отправлен на фронтенд');
-            }
-
-            // 2. Генерация JSON (Groq Llama 3.3)
-            console.log('➡️  Отправка в Groq (llama-3.3-70b)...');
-            let systemPrompt = SYSTEM_PROMPTS[sessionData.formType] || SYSTEM_PROMPTS['052'];
-
-            // Загружаем кастомный промпт текущего врача
-            const userData = db.getUserById(wsUserId);
-            if (userData && userData.custom_prompt && userData.custom_prompt.trim()) {
-                systemPrompt += `\n\n=== ПРАВИЛА И ПРИВЫЧКИ ВРАЧА (ВЫСШИЙ ПРИОРИТЕТ) ===\n${userData.custom_prompt}\n`;
-            }
-
-            const userPrompt = `Транскрипция:\n"${fullTextAccumulated}"\n\nЗаполни форму.`;
-
-            let groqResult = null;
-            for (let attempt = 0; attempt < 3; attempt++) {
-                try {
-                    groqResult = await groq.chat.completions.create({
-                        messages: [
-                            { role: "system", content: systemPrompt },
-                            { role: "user", content: userPrompt }
-                        ],
-                        model: "llama-3.3-70b-versatile",
-                        response_format: { type: "json_object" }
-                    });
-                    break;
-                } catch (groqErr) {
-                    const statusCode = groqErr.status || 0;
-                    console.log(`❌ Groq ошибка ${statusCode}: ${groqErr.message}`);
-                    if ((statusCode === 429 || statusCode === 503) && attempt < 2) {
-                        console.log(`⏳ Ждём 5 секунд и повторяем (попытка ${attempt + 2}/3)...`);
-                        await new Promise(r => setTimeout(r, 5000));
-                    } else {
-                        throw groqErr;
-                    }
-                }
-            }
-
-            if (groqResult) {
-                const jsonResponseText = groqResult.choices[0].message.content;
-                console.log('📄 Ответ Groq (сырой):', jsonResponseText.substring(0, 200));
-                try {
-                    const parsedData = JSON.parse(jsonResponseText);
-                    if (ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({ type: 'form_update', formJson: parsedData }));
-                    }
-                    console.log('✅ Форма успешно обновлена от Groq!');
-                } catch (jsonErr) {
-                    console.error('❌ Ошибка парсинга JSON от Groq:', jsonResponseText.substring(0, 300));
-                }
-            }
-
-        } catch (error) {
-            console.error('❌ Ошибка в цикле:', error.message || error);
-        } finally {
-            isProcessing = false;
-            console.log('--- Конец цикла ---\n');
-        }
-    };
-
-    ws.on('message', async (message, isBinary) => {
-        if (isBinary) {
-            if (message.length > MAX_BINARY_MSG_BYTES) return;
-            audioChunks.push(Buffer.from(message));
-            return;
-        }
-
-        let data;
-        try { data = JSON.parse(message.toString()); } catch { return; }
-
-        if (data.type === 'start') {
-            sessionData = data.payload || {};
-            sessionData.formType = sessionData.formType || '052';
-            audioChunks = [];
-            fullTextAccumulated = "";
-            console.log(`Начат приём. Форма: ${sessionData.formType}`);
-
-            // Запускаем автоматический цикл каждые 20 секунд (чтобы не превышать лимиты Gemini)
-            processInterval = setInterval(processCurrentAudio, 20000);
-        }
-        else if (data.type === 'stop') {
-            console.log('Остановка приёма. Финальное сохранение...');
-            if (processInterval) clearInterval(processInterval);
-
-            ws.send(JSON.stringify({ type: 'processing', message: 'Сохраняем данные в БД...' }));
-
-            // manualOverrides содержат финальные данные из полей, которые мог отредактировать Врач перед кнопкой "Завершить"
-            const finalFormJson = data.manualOverrides || {};
-
-            try {
-                // Сохраняем в БД (medCard как JSON-строка)
-                const appointmentId = db.saveAppointment({
-                    user_id: wsUserId,
-                    patient_name: sessionData.patientName,
-                    doctor_name: sessionData.doctorName,
-                    date: new Date().toISOString(),
-                    transcription: fullTextAccumulated,
-                    med_card: JSON.stringify(finalFormJson),
-                    form_type: sessionData.formType
-                });
-
-                ws.send(JSON.stringify({ type: 'success', appointmentId }));
-            } catch (err) {
-                console.error('Ошибка БД:', err);
-                ws.send(JSON.stringify({ type: 'error', message: 'Ошибка БД' }));
-            }
-        }
-    });
-
+    ws.on('message', (msg, isBinary) => session.handleMessage(msg, isBinary));
     ws.on('error', (error) => console.error('WebSocket ошибка:', error));
-    ws.on('close', () => {
-        console.log('Клиент отключился');
-        if (processInterval) clearInterval(processInterval);
-        audioChunks = [];
-    });
+    ws.on('close', () => session.cleanup());
 });
 
 const PORT = process.env.PORT || 3000;

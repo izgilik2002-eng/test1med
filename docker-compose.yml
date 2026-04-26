@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mediqaz:
     build: .
@@ -9,8 +7,11 @@ services:
       - "80:3000"
     environment:
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
       - JWT_SECRET=${JWT_SECRET}
       - DB_PATH=/app/data/mediqaz.db
     volumes:
-      - ./mediqaz_data:/app/data
+      - mediqaz_data:/app/data
+
+volumes:
+  mediqaz_data:
