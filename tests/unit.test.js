@@ -1,4 +1,4 @@
-// tests/e2e.test.js — smoke-тест критического пути MediQaz
+// tests/unit.test.js — unit-тесты модулей MediQaz (auth, prompts)
 // Запуск: npm test (или node --test tests/)
 const { test, describe } = require('node:test');
 const assert = require('node:assert');

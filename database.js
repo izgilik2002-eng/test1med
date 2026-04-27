@@ -50,6 +50,10 @@ safeMigrate("ALTER TABLE appointments ADD COLUMN form_type TEXT DEFAULT '052'", 
 safeMigrate("ALTER TABLE appointments ADD COLUMN user_id INTEGER", 'add user_id to appointments');
 safeMigrate("ALTER TABLE users ADD COLUMN custom_prompt TEXT", 'add custom_prompt to users');
 
+// Индексы для быстрого поиска по врачу и дате
+db.exec('CREATE INDEX IF NOT EXISTS idx_appointments_user_id ON appointments(user_id);');
+db.exec('CREATE INDEX IF NOT EXISTS idx_appointments_user_created ON appointments(user_id, created_at DESC);');
+
 module.exports = {
   // --- Пользователи (Врачи) ---
   createUser: (data) => {

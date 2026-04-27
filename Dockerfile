@@ -19,6 +19,10 @@ RUN npm ci --omit=dev
 # Копируем исходный код
 COPY . .
 
+# Создаём non-root пользователя для безопасности
+RUN useradd -m -u 1001 mediqaz && chown -R mediqaz:mediqaz /app
+USER mediqaz
+
 # Открываем порт HTTP сервера
 EXPOSE 3000
 
