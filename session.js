@@ -32,6 +32,7 @@ class Session {
         // Deepgram Live
         this.dgConnection = null;
         this.isDgReady = false;
+        this.audioBuffer = []; // Для хранения чанков, пока Deepgram подключается
     }
 
     /**
@@ -45,6 +46,9 @@ class Session {
             // Стриминг: мгновенно пересылаем аудио-чанк в Deepgram
             if (this.isDgReady && this.dgConnection) {
                 this.dgConnection.socket.send(message);
+            } else {
+                // Если Deepgram еще не готов, сохраняем чанк (особенно важен первый с WebM-заголовком!)
+                this.audioBuffer.push(message);
             }
             return;
         }
@@ -65,6 +69,7 @@ class Session {
         this.sessionData.formType = this.sessionData.formType || '052';
         this.fullText = '';
         this.lastProcessedTextLength = 0;
+        this.audioBuffer = [];
         console.log(`Начат приём. Форма: ${this.sessionData.formType}`);
 
         this.initDeepgramLive();
@@ -95,6 +100,15 @@ class Session {
             this.dgConnection.on('open', () => {
                 console.log('✅ Соединение с Deepgram Live установлено');
                 this.isDgReady = true;
+                
+                // Отправляем накопленные чанки
+                if (this.audioBuffer.length > 0) {
+                    console.log(`Отправка ${this.audioBuffer.length} буферизованных чанков...`);
+                    for (const chunk of this.audioBuffer) {
+                        this.dgConnection.socket.send(chunk);
+                    }
+                    this.audioBuffer = [];
+                }
             });
 
             this.dgConnection.on('message', (data) => {
@@ -162,11 +176,11 @@ class Session {
         console.log('Остановка приёма. Закрываем стрим Deepgram...');
         if (this.llmDebounceTimer) clearTimeout(this.llmDebounceTimer);
         
-        // Закрываем стрим
+        // Закрываем стрим корректно, чтобы получить финальные результаты
         if (this.dgConnection && this.isDgReady) {
-            // В v5 можно отправить пустое бинарное сообщение или close
-            try { this.dgConnection.socket.send(Buffer.alloc(0)); } catch (e) {}
-            setTimeout(() => { try { this.dgConnection.socket.close(); } catch(e){} }, 500);
+            try { this.dgConnection.socket.send(JSON.stringify({ type: 'CloseStream' })); } catch (e) {}
+            // Даем немного времени на обработку
+            await new Promise(resolve => setTimeout(resolve, 800));
         }
 
         this.send({ type: 'processing', message: 'Сохраняем данные в БД...' });
