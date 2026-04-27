@@ -4,6 +4,7 @@ const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
 const bcrypt = require('bcryptjs');
+const rateLimit = require('express-rate-limit');
 const db = require('./database');
 const { buildMagicEditPrompt } = require('./prompts');
 const { authenticateToken, authenticateWs, signToken } = require('./auth');
@@ -28,12 +29,29 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
+// Rate-limit: защита от брутфорса на auth-эндпоинтах
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 минут
+    max: 5,                    // максимум 5 попыток на IP
+    message: { error: 'Слишком много попыток. Попробуйте через 15 минут.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Валидация данных при регистрации
+function validateRegistration({ email, password, name }) {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Невалидный email';
+    if (!password || password.length < 8) return 'Пароль должен быть не короче 8 символов';
+    if (!name || name.trim().length < 2 || name.length > 100) return 'Имя должно быть от 2 до 100 символов';
+    return null;
+}
+
 // ========== AUTH API ==========
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', authLimiter, async (req, res) => {
     const { email, password, name } = req.body;
-    if (!email || !password || !name) {
-        return res.status(400).json({ error: 'Заполните все поля' });
-    }
+
+    const validationError = validateRegistration({ email, password, name });
+    if (validationError) return res.status(400).json({ error: validationError });
 
     const existing = db.getUserByEmail(email);
     if (existing) return res.status(409).json({ error: 'Email уже зарегистрирован' });
@@ -52,7 +70,7 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', authLimiter, async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Заполните все поля' });
 

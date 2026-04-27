@@ -32,10 +32,23 @@ db.exec(`
   )
 `);
 
-// Миграции для существующих таблиц (безопасно, если колонки уже есть)
-try { db.exec("ALTER TABLE appointments ADD COLUMN form_type TEXT DEFAULT '052';"); } catch (e) {}
-try { db.exec("ALTER TABLE appointments ADD COLUMN user_id INTEGER;"); } catch (e) {}
-try { db.exec("ALTER TABLE users ADD COLUMN custom_prompt TEXT;"); } catch (e) {}
+// Миграции для существующих таблиц
+function safeMigrate(sql, description) {
+    try {
+        db.exec(sql);
+    } catch (e) {
+        if (e.message && e.message.includes('duplicate column name')) {
+            // Колонка уже существует — нормально при повторном запуске
+            return;
+        }
+        console.error(`[DB Migration FAILED] ${description}:`, e.message);
+        throw e;
+    }
+}
+
+safeMigrate("ALTER TABLE appointments ADD COLUMN form_type TEXT DEFAULT '052'", 'add form_type to appointments');
+safeMigrate("ALTER TABLE appointments ADD COLUMN user_id INTEGER", 'add user_id to appointments');
+safeMigrate("ALTER TABLE users ADD COLUMN custom_prompt TEXT", 'add custom_prompt to users');
 
 module.exports = {
   // --- Пользователи (Врачи) ---
