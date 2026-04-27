@@ -118,10 +118,23 @@ app.delete('/api/appointments/:id', authenticateToken, (req, res) => {
 });
 
 // ========== MAGIC EDIT ==========
+const MAX_INSTRUCTION_LENGTH = 1000;
+const MAX_FORM_SIZE_BYTES = 50_000;
+
 app.post('/api/magic-edit', authenticateToken, async (req, res) => {
     const { currentForm, instruction } = req.body;
     if (!instruction || !currentForm) {
         return res.status(400).json({ error: 'Нужна форма и инструкция' });
+    }
+    if (typeof instruction !== 'string' || instruction.length > MAX_INSTRUCTION_LENGTH) {
+        return res.status(400).json({ error: `Инструкция слишком длинная (максимум ${MAX_INSTRUCTION_LENGTH} символов)` });
+    }
+    let formSizeStr;
+    try { formSizeStr = JSON.stringify(currentForm); } catch {
+        return res.status(400).json({ error: 'Невалидная форма' });
+    }
+    if (formSizeStr.length > MAX_FORM_SIZE_BYTES) {
+        return res.status(400).json({ error: 'Форма слишком большая' });
     }
 
     const prompt = buildMagicEditPrompt(currentForm, instruction);

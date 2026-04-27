@@ -158,6 +158,7 @@ class Session {
 
             this.dgConnection.on('error', (err) => {
                 console.error('Ошибка Deepgram Live:', err);
+                this.send({ type: 'error', message: 'Связь с распознаванием речи прервалась. Остановите и начните приём заново.' });
             });
             
             // Запускаем подключение
@@ -165,6 +166,7 @@ class Session {
 
         } catch (err) {
             console.error('Ошибка инициализации Deepgram:', err);
+            this.send({ type: 'error', message: 'Не удалось подключиться к сервису распознавания речи. Проверьте ключ DEEPGRAM_API_KEY.' });
         }
     }
 
