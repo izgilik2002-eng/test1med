@@ -270,6 +270,8 @@ async function getAllAppointments() {
 // ════════════════════════════════════════════════════════════
 
 async function startRecording() {
+  await loadSettings(); // Загружаем свежие настройки (API ключи) перед стартом
+
   if (!state.apiKeys.deepgram) {
     showToast('Введите Deepgram API Key в настройках ⚙️', 'error', 5000);
     chrome.runtime.openOptionsPage();
