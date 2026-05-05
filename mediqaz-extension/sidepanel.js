@@ -418,14 +418,19 @@ async function saveTranscriptToHistory() {
 function connectDeepgram() {
   const settingLang = state.settings.language;
   const lang = settingLang === 'kk' ? 'kk' : (settingLang === 'multi' ? 'multi' : 'ru');
-  const params = new URLSearchParams({ ...DEEPGRAM_PARAMS, language: lang });
-  const url = `wss://api.deepgram.com/v1/listen?${params.toString()}`;
 
-  const ws = new WebSocket(url, ['token', state.apiKeys.deepgram]);
+  // ── Фикс #1: передаём API ключ через access_token в URL (официально поддерживается Deepgram для браузеров).
+  // Предыдущий способ ['token', key] как subprotocol — Deepgram начал отклонять после обновлений серверов:
+  // соединение открывалось (onopen срабатывал), но транскрипция молча не шла и WS закрывался.
+  const params = new URLSearchParams({ ...DEEPGRAM_PARAMS, language: lang });
+  const url = `wss://api.deepgram.com/v1/listen?${params.toString()}&access_token=${encodeURIComponent(state.apiKeys.deepgram)}`;
+
+  const ws = new WebSocket(url); // Без второго аргумента — авторизация уже в URL
   state.deepgramWS = ws;
 
   ws.onopen = () => {
     state.reconnectCount = 0;
+    console.log('[Deepgram] ✅ WebSocket открыт, protocol:', ws.protocol || '(none)');
 
     // Запускаем Поток A
     const mimeType = getSupportedMimeType();
@@ -441,17 +446,26 @@ function connectDeepgram() {
   ws.onmessage = (e) => handleDeepgramMessage(e.data);
 
   ws.onerror = (err) => {
-    console.error('[Deepgram] Ошибка:', err);
+    console.error('[Deepgram] Ошибка WebSocket:', err);
+    showToast('❌ Ошибка подключения к Deepgram', 'error', 5000);
   };
 
   ws.onclose = (e) => {
+    console.warn('[Deepgram] Соединение закрыто:', { code: e.code, reason: e.reason, wasClean: e.wasClean });
+
+    // ── Фикс #2: фатальные коды = ошибка авторизации/протокола, реконнект не поможет ──
+    const fatalCodes = [1008, 4001, 4008, 1011, 1003];
+    if (fatalCodes.includes(e.code)) {
+      showToast(`❌ Deepgram отклонил соединение (код ${e.code}). Проверьте API ключ ⚙️`, 'error', 8000);
+      setTimeout(() => chrome.runtime.openOptionsPage(), 1500);
+      stopRecording();
+      return;
+    }
+
     if (state.isRecording && state.reconnectCount < state.maxReconnect) {
       const delay = Math.pow(2, state.reconnectCount) * 1000;
       state.reconnectCount++;
-      showToast(
-        `Переподключение к Deepgram... (${state.reconnectCount}/${state.maxReconnect})`,
-        'info'
-      );
+      showToast(`Переподключение к Deepgram... (${state.reconnectCount}/${state.maxReconnect})`, 'info');
       setTimeout(() => { if (state.isRecording) connectDeepgram(); }, delay);
     } else if (state.isRecording) {
       showToast('Потеряно соединение с Deepgram. Проверьте API ключ.', 'error', 6000);

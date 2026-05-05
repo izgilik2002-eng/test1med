@@ -16,6 +16,7 @@
     "https://panfalm.e-mis.kz/*",
     "https://damumed.kz/*",
     "https://api.deepgram.com/*",
+    "wss://api.deepgram.com/*",
     "https://api.groq.com/*"
   ],
   "side_panel": {
