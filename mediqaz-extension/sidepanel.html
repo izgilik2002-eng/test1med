@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediQaz — AI Ассистент Врача</title>
+  <!-- Подключаем стили (НЕТ внешних CDN — только 'self') -->
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+
+  <!-- ════════════════════════════════════════════════════
+       ХЕДЕР — логотип, версия, кнопка настроек
+       id="headerSpecialty" — dropdown специальности
+       ════════════════════════════════════════════════════ -->
+  <header class="header">
+    <div class="header-top">
+      <div class="logo">
+        <span class="logo-icon">🩺</span>
+        <span>MediQaz</span>
+        <span class="logo-version">v1.0</span>
+      </div>
+      <!-- id="btnSettings" — открывает страницу настроек -->
+      <button class="btn-settings" id="btnSettings" title="Настройки">⚙️</button>
+    </div>
+
+    <!-- Статус-строка сессии -->
+    <!-- id="sessionStatus" — показывает состояние: "Запись...", "Готов к приёму" -->
+    <div class="session-status" id="sessionStatus">Готов к записи приёма</div>
+
+    <!-- id="specialtySelect" — dropdown специальности врача -->
+    <select class="specialty-select" id="specialtySelect">
+      <option value="therapist">👨‍⚕️ Терапевт</option>
+      <option value="pediatrician">👶 Педиатр</option>
+      <option value="cardiologist">❤️ Кардиолог</option>
+      <option value="surgeon">🔪 Хирург</option>
+      <option value="ent">👂 ЛОР</option>
+      <option value="neurologist">🧠 Невролог</option>
+    </select>
+  </header>
+
+  <!-- ════════════════════════════════════════════════════
+       ОСНОВНОЙ КОНТЕНТ
+       ════════════════════════════════════════════════════ -->
+  <main class="main-content">
+
+    <!-- ── БЛОК 1: НОВЫЙ ПРИЁМ ──────────────────────────
+         id="blockNewAppointment" — весь блок
+         id="doctorName"          — имя врача (input)
+         id="patientName"         — имя пациента (input)
+         id="btnStart"            — кнопка начать запись
+         id="btnStop"             — кнопка остановить (hidden)
+         id="recordingTimer"      — таймер 00:00:00
+         ──────────────────────────────────────────────── -->
+    <div class="block-card" id="blockNewAppointment">
+      <div class="block-title">Новый приём</div>
+
+      <div class="input-group">
+        <label class="input-label" for="doctorName">Врач</label>
+        <input
+          class="input-field"
+          id="doctorName"
+          type="text"
+          placeholder="Фамилия И.О."
+          autocomplete="name"
+        >
+      </div>
+
+      <div class="input-group">
+        <label class="input-label" for="patientName">Пациент</label>
+        <input
+          class="input-field"
+          id="patientName"
+          type="text"
+          placeholder="Фамилия И.О. пациента"
+          autocomplete="off"
+        >
+      </div>
+
+      <div class="btn-row">
+        <!-- Кнопка старт -->
+        <button class="btn btn-primary" id="btnStart">
+          ▶ Начать приём
+        </button>
+
+        <!-- Кнопка стоп (скрыта до начала записи) -->
+        <button class="btn btn-danger hidden" id="btnStop">
+          ⏹ Остановить
+        </button>
+
+        <!-- Таймер записи -->
+        <span class="timer" id="recordingTimer">00:00:00</span>
+      </div>
+    </div>
+
+    <!-- ── БЛОК 2: ТРАНСКРИПЦИЯ ─────────────────────────
+         id="blockTranscription" — весь блок
+         id="transcriptionArea"  — textarea живой транскрипции (readonly)
+         id="btnCopyTranscript"  — кнопка копировать транскрипцию
+         id="btnAskQuestion"     — кнопка задать вопрос по приёму
+         ──────────────────────────────────────────────── -->
+    <div class="block-card" id="blockTranscription">
+      <div class="block-title">Живая транскрипция</div>
+
+      <textarea
+        class="transcription-area"
+        id="transcriptionArea"
+        readonly
+        placeholder="Транскрипция появится после начала записи..."
+      ></textarea>
+
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="btnCopyTranscript">
+          📋 Копировать
+        </button>
+        <button class="btn btn-secondary" id="btnAskQuestion">
+          ❓ Спросить по приёму
+        </button>
+      </div>
+    </div>
+
+    <!-- ── БЛОК 3: ГЕНЕРАЦИЯ МЕДКАРТЫ ──────────────────
+         id="blockGenerate"  — весь блок
+         id="btnGenerate"    — кнопка сгенерировать
+         id="generateSpinner" — спиннер (hidden во время ожидания)
+         ──────────────────────────────────────────────── -->
+    <div class="block-card" id="blockGenerate">
+      <div class="block-title">Генерация медкарты</div>
+
+      <div class="btn-row">
+        <button class="btn btn-success" id="btnGenerate">
+          🤖 Сгенерировать медкарту
+        </button>
+        <!-- id="generateSpinner" — крутилка при загрузке -->
+        <div class="spinner spinner-dark hidden" id="generateSpinner"></div>
+      </div>
+    </div>
+
+    <!-- ── БЛОК 4: МЕДКАРТА ─────────────────────────────
+         id="medCardBlock"  — весь блок (hidden изначально)
+         Карточки рендерятся динамически через sidepanel.js
+         в контейнер id="medCardSections"
+
+         Структура каждой карточки (создаётся в JS):
+         .med-section
+           .med-section-header
+             .med-section-title  — заголовок с эмодзи
+             .med-section-actions
+               button.btn-ghost [📋] id="copy-{key}"
+               button.btn-ghost [✏️] id="edit-{key}"
+               button.btn-ghost [▶]  id="play-{key}"
+           .med-section-text      id="text-{key}"
+           .btn-evidence          id="evidence-{key}" (таймкод аудио)
+           .magic-edit-form       id="editForm-{key}"
+             input.magic-edit-input id="editInput-{key}"
+             button.btn.btn-primary id="editSubmit-{key}"
+         ──────────────────────────────────────────────── -->
+    <div id="medCardBlock" class="hidden">
+      <div class="block-title" style="padding: 0 0 8px 0;">Медицинская карта</div>
+      <!-- Контейнер для динамических карточек секций -->
+      <div id="medCardSections"></div>
+    </div>
+
+    <!-- ── БЛОК 5: Q&A ПО ПРИЁМУ ───────────────────────
+         id="blockQA"       — весь блок (hidden изначально)
+         id="qaInput"       — input вопроса
+         id="btnQaSend"     — кнопка отправить вопрос
+         id="qaAnswer"      — блок с ответом
+         id="qaSpinner"     — спиннер ожидания
+         id="btnQaEvidence" — кнопка слушать (hidden пока нет цитаты)
+         ──────────────────────────────────────────────── -->
+    <div class="block-card hidden" id="blockQA">
+      <div class="block-title">Вопрос по приёму</div>
+
+      <div class="qa-input-row">
+        <input
+          class="qa-input"
+          id="qaInput"
+          type="text"
+          placeholder="Пациент упоминал аллергию?"
+        >
+        <button class="btn btn-primary" id="btnQaSend">
+          Спросить
+        </button>
+      </div>
+
+      <div class="spinner spinner-dark hidden" id="qaSpinner"></div>
+
+      <div class="qa-answer hidden" id="qaAnswer"></div>
+
+      <!-- Кнопка воспроизвести цитату (появляется если есть аудио-доказательство) -->
+      <button class="btn-evidence hidden" id="btnQaEvidence">
+        ▶ Слушать цитату
+      </button>
+    </div>
+
+  </main>
+
+  <!-- ════════════════════════════════════════════════════
+       КНОПКИ ДЕЙСТВИЙ (прилеплены к низу)
+       id="btnFillMIS"    — автозаполнить форму МИС
+       id="btnExportPDF"  — скачать PDF
+       id="btnNewSession" — начать новый приём (сброс)
+       ════════════════════════════════════════════════════ -->
+  <div class="action-buttons">
+    <button class="btn btn-primary" id="btnFillMIS" title="Автозаполнить форму МИС">
+      🤖 МИС
+    </button>
+    <button class="btn btn-secondary" id="btnExportPDF" title="Скачать PDF">
+      📥 PDF
+    </button>
+    <button class="btn btn-secondary" id="btnNewSession" title="Начать новый приём">
+      🔄 Новый
+    </button>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════
+       КОНТЕЙНЕР TOAST-УВЕДОМЛЕНИЙ
+       id="toastContainer" — сюда добавляются toast'ы через JS
+       ════════════════════════════════════════════════════ -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Локальные библиотеки (НЕТ внешних CDN — CSP запрещает) -->
+  <script src="lib/idb-keyval.min.js"></script>
+  <script src="lib/jspdf.umd.min.js"></script>
+  <!-- Подключаем основную логику (НЕТ inline scripts — CSP запрещает) -->
+  <script src="sidepanel.js"></script>
+
+</body>
+</html>

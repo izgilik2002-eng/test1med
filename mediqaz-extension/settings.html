@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediQaz — Настройки</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary:      #2563EB;
+      --primary-dark: #1D4ED8;
+      --success:      #059669;
+      --danger:       #DC2626;
+      --bg:           #F8FAFC;
+      --card:         #FFFFFF;
+      --text:         #1E293B;
+      --muted:        #64748B;
+      --border:       #E2E8F0;
+      --radius:       12px;
+      --font:         -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+      padding: 24px;
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    /* ─── Хедер ─────────────────────────────────────────── */
+    .page-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+    .page-header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .logo-icon { font-size: 24px; }
+
+    /* ─── Секции настроек ────────────────────────────────── */
+    .settings-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    /* ─── Поля формы ─────────────────────────────────────── */
+    .form-group {
+      margin-bottom: 14px;
+    }
+    .form-group:last-child { margin-bottom: 0; }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .form-hint {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: var(--card);
+    }
+
+    /* Поле пароля с кнопкой показать */
+    .form-input.password-field { padding-right: 42px; }
+
+    .btn-toggle-password {
+      position: absolute;
+      right: 10px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      color: var(--muted);
+      padding: 4px;
+      line-height: 1;
+    }
+    .btn-toggle-password:hover { color: var(--text); }
+
+    .form-select {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748B' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+    .form-select:focus { outline: none; border-color: var(--primary); }
+
+    .form-textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      line-height: 1.6;
+      resize: vertical;
+      min-height: 100px;
+    }
+    .form-textarea:focus { outline: none; border-color: var(--primary); }
+    .form-textarea::placeholder { color: var(--muted); }
+
+    /* ─── Кнопки ─────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 18px;
+      border: none;
+      border-radius: 8px;
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+
+    .btn-primary  { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); }
+
+    .btn-danger   { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+    .btn-danger:hover { background: rgba(220,38,38,0.08); }
+
+    .btn-full { width: 100%; }
+
+    /* ─── Строка кнопок ──────────────────────────────────── */
+    .btn-group { display: flex; flex-direction: column; gap: 8px; }
+
+    /* ─── О приложении ───────────────────────────────────── */
+    .about-info {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 2;
+    }
+    .about-info strong { color: var(--text); }
+
+    /* ─── Toast ──────────────────────────────────────────── */
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .toast-container {
+      position: fixed; top: 16px; right: 16px;
+      display: flex; flex-direction: column; gap: 8px;
+      z-index: 1000;
+    }
+    .toast {
+      padding: 10px 16px; border-radius: 10px;
+      font-size: 13px; font-weight: 500; color: white;
+      animation: slideDown 0.25s ease;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .toast-success { background: var(--success); }
+    .toast-error   { background: var(--danger); }
+    .toast-info    { background: var(--primary); }
+
+    /* ─── Разделитель ────────────────────────────────────── */
+    hr { border: none; border-top: 1px solid var(--border); margin: 4px 0 14px; }
+  </style>
+</head>
+<body>
+
+  <!-- ─── Хедер страницы ─── -->
+  <div class="page-header">
+    <span class="logo-icon">🩺</span>
+    <h1>MediQaz — Настройки</h1>
+  </div>
+
+  <!-- ════════════════════════════════════════════
+       СЕКЦИЯ 1: API Ключи
+       id="inputDeepgramKey" — ключ Deepgram
+       id="inputGroqKey"     — ключ Groq
+       ════════════════════════════════════════════ -->
+  <div class="settings-section">
+    <div class="section-title">🔑 API Ключи</div>
+
+    <div class="form-group">
+      <label class="form-label" for="inputDeepgramKey">Deepgram API Key</label>
+      <div class="input-wrapper">
+        <input
+          class="form-input password-field"
+          id="inputDeepgramKey"
+          type="password"
+          placeholder="dg_xxxxxxxxxxxxxxxxxxxxxxxx"
+          autocomplete="off"
+        >
+        <!-- id="toggleDeepgramKey" — показать/скрыть ключ -->
+        <button class="btn-toggle-password" id="toggleDeepgramKey" type="button">👁</button>
+      </div>
+      <div class="form-hint">Получите ключ на <strong>deepgram.com</strong> → Console → API Keys</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="inputGroqKey">Groq API Key</label>
+      <div class="input-wrapper">
+        <input
+          class="form-input password-field"
+          id="inputGroqKey"
+          type="password"
+          placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxx"
+          autocomplete="off"
+        >
+        <!-- id="toggleGroqKey" — показать/скрыть ключ -->
+        <button class="btn-toggle-password" id="toggleGroqKey" type="button">👁</button>
+      </div>
+      <div class="form-hint">Получите ключ на <strong>groq.com</strong> → Dashboard → API Keys</div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════
+       СЕКЦИЯ 2: Профиль врача
+       id="inputDoctorName"    — имя врача
+       id="selectSpecialty"    — специальность
+       id="selectLanguage"     — язык транскрипции
+       ════════════════════════════════════════════ -->
+  <div class="settings-section">
+    <div class="section-title">👨‍⚕️ Профиль врача</div>
+
+    <div class="form-group">
+      <label class="form-label" for="inputDoctorName">Имя врача по умолчанию</label>
+      <input
+        class="form-input"
+        id="inputDoctorName"
+        type="text"
+        placeholder="Иванов Иван Иванович"
+        autocomplete="name"
+      >
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="selectSpecialty">Специальность по умолчанию</label>
+      <select class="form-select" id="selectSpecialty">
+        <option value="therapist">👨‍⚕️ Терапевт</option>
+        <option value="pediatrician">👶 Педиатр</option>
+        <option value="cardiologist">❤️ Кардиолог</option>
+        <option value="surgeon">🔪 Хирург</option>
+        <option value="ent">👂 ЛОР</option>
+        <option value="neurologist">🧠 Невролог</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="selectLanguage">Язык транскрипции</label>
+      <select class="form-select" id="selectLanguage">
+        <option value="ru">🇷🇺 Русский</option>
+        <option value="kk">🇰🇿 Қазақша</option>
+        <option value="multi">🌐 Авто (ру + каз)</option>
+      </select>
+      <div class="form-hint">Deepgram Nova-2 поддерживает русский и казахский языки</div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════
+       СЕКЦИЯ 3: Кастомные инструкции
+       id="inputCustomInstructions" — textarea
+       ════════════════════════════════════════════ -->
+  <div class="settings-section">
+    <div class="section-title">✏️ Кастомные инструкции для ИИ</div>
+
+    <div class="form-group">
+      <label class="form-label" for="inputCustomInstructions">
+        Ваши персональные правила (добавляются в каждый промпт)
+      </label>
+      <textarea
+        class="form-textarea"
+        id="inputCustomInstructions"
+        placeholder="Примеры:
+• Всегда добавляй рекомендацию 'Явка при ухудшении состояния'
+• Пиши диагнозы на казахском языке
+• Добавляй рекомендации по здоровому образу жизни
+• Назначения — только по протоколам МЗ РК"
+      ></textarea>
+    </div>
+
+    <!-- Кнопка сохранить -->
+    <button class="btn btn-primary btn-full" id="btnSaveSettings">
+      💾 Сохранить все настройки
+    </button>
+  </div>
+
+  <!-- ════════════════════════════════════════════
+       СЕКЦИЯ 4: Управление данными
+       id="btnClearHistory"   — очистить историю
+       id="btnClearDOMCache"  — сбросить кэш МИС
+       id="btnClearAudio"     — очистить аудио
+       ════════════════════════════════════════════ -->
+  <div class="settings-section">
+    <div class="section-title">🗂 Управление данными</div>
+
+    <div class="btn-group">
+      <button class="btn btn-danger" id="btnClearHistory">
+        🗑 Очистить историю приёмов (текст)
+      </button>
+      <button class="btn btn-danger" id="btnClearDOMCache">
+        🔄 Сбросить кэш автозаполнения МИС
+      </button>
+      <button class="btn btn-danger" id="btnClearAudio">
+        🗑 Очистить аудиозаписи (IndexedDB)
+      </button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════
+       СЕКЦИЯ 5: О приложении
+       ════════════════════════════════════════════ -->
+  <div class="settings-section">
+    <div class="section-title">ℹ️ О приложении</div>
+    <div class="about-info">
+      <div><strong>MediQaz</strong> — AI ассистент для врачей Казахстана</div>
+      <div>Версия: <strong>1.0.0</strong></div>
+      <div>Транскрипция: <strong>Deepgram Nova-2</strong></div>
+      <div>Генерация медкарты: <strong>Groq llama-3.3-70b</strong></div>
+    </div>
+  </div>
+
+  <!-- Toast контейнер -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Подключаем логику (НЕТ inline scripts) -->
+  <script src="lib/idb-keyval.min.js"></script>
+  <script src="settings.js"></script>
+
+</body>
+</html>

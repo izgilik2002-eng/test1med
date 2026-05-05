@@ -1,0 +1,47 @@
+{
+  "name": "MediQaz — AI Ассистент Врача",
+  "description": "AI-ассистент для врачей Казахстана: транскрибирует приём, генерирует медкарту, заполняет МИС.",
+  "version": "1.0.0",
+  "manifest_version": 3,
+  "permissions": [
+    "storage",
+    "sidePanel",
+    "activeTab",
+    "tabs",
+    "scripting",
+    "alarms"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "https://panfalm.e-mis.kz/*",
+    "https://damumed.kz/*",
+    "https://api.deepgram.com/*",
+    "https://api.groq.com/*"
+  ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_ui": {
+    "page": "settings.html",
+    "open_in_tab": false
+  },
+  "action": {
+    "default_title": "MediQaz — Открыть панель",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

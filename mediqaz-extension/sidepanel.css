@@ -1,0 +1,876 @@
+/* =============================================================
+   sidepanel.css — Стили боковой панели MediQaz
+   День 5: staggered анимации, статус-строка, полировка UI
+   Шрифт: системный (без Google Fonts — CSP запрещает @import)
+   ============================================================= */
+
+/* ─── Сброс и базовые стили ─────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --primary:      #2563EB;
+  --primary-dark: #1D4ED8;
+  --success:      #059669;
+  --success-dark: #047857;
+  --danger:       #DC2626;
+  --danger-light: rgba(220, 38, 38, 0.1);
+  --warning:      #D97706;
+  --bg:           #F8FAFC;
+  --card:         #FFFFFF;
+  --text:         #1E293B;
+  --muted:        #64748B;
+  --border:       #E2E8F0;
+  --radius:       12px;
+  --radius-sm:    8px;
+  --shadow:       0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md:    0 4px 12px rgba(0, 0, 0, 0.12);
+  --shadow-lg:    0 8px 24px rgba(0, 0, 0, 0.15);
+  --font:         -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --transition:   0.2s ease;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  width: 400px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ─── Скролл ────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+/* ─── Хедер ─────────────────────────────────────────────────── */
+.header {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 1px 0 var(--border);
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--primary);
+}
+
+.logo-icon { font-size: 20px; }
+
+.logo-version {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* ─── Статус-строка (показывает текущую сессию) ──────────────── */
+.session-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  min-height: 18px;
+}
+
+.session-status.recording {
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.recording-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--danger);
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: blink 1s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
+}
+
+.btn-settings {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  font-size: 16px;
+  color: var(--muted);
+  transition: background var(--transition), color var(--transition);
+}
+
+.btn-settings:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ─── Dropdown специальностей ───────────────────────────────── */
+.specialty-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748B' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.specialty-select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* ─── Основной контейнер ─────────────────────────────────────── */
+.main-content {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ─── Карточки блоков ────────────────────────────────────────── */
+.block-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: var(--shadow);
+  transition: box-shadow var(--transition);
+}
+
+.block-card:focus-within {
+  box-shadow: var(--shadow-md);
+  border-color: rgba(37, 99, 235, 0.3);
+}
+
+.block-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+/* ─── Инпуты ──────────────────────────────────────────────────── */
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.input-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.input-field {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: var(--card);
+}
+
+.input-field::placeholder {
+  color: var(--muted);
+}
+
+/* ─── Кнопки ─────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border: none;
+  border-radius: 8px;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s, opacity 0.2s;
+  white-space: nowrap;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #B91C1C;
+}
+
+.btn-secondary {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--border);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 10px;
+}
+
+.btn-ghost:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.btn-success {
+  background: var(--success);
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #047857;
+}
+
+/* ─── Строка кнопок ──────────────────────────────────────────── */
+.btn-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ─── Таймер ─────────────────────────────────────────────────── */
+.timer {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  padding: 6px 0;
+  letter-spacing: 0.03em;
+}
+
+.timer.recording {
+  color: var(--danger);
+}
+
+/* ─── Кнопка Остановить: pulse-анимация ─────────────────────── */
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+  70%  { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}
+
+.btn-danger.recording {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* ─── Транскрипция ───────────────────────────────────────────── */
+.transcription-area {
+  width: 100%;
+  height: 150px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.6;
+  resize: none;
+  overflow-y: auto;
+  margin-bottom: 8px;
+  transition: border-color var(--transition);
+}
+
+.transcription-area:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: var(--card);
+}
+
+/* Пустое состояние транскрипции */
+.transcription-area:placeholder-shown {
+  font-style: italic;
+}
+
+/* ─── Спиннер загрузки ───────────────────────────────────────── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+
+.spinner-dark {
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+}
+
+/* ─── Карточки секций медкарты ───────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Staggered анимация — каждая карточка появляется с задержкой */
+.med-section:nth-child(1) { animation-delay: 0ms; }
+.med-section:nth-child(2) { animation-delay: 60ms; }
+.med-section:nth-child(3) { animation-delay: 120ms; }
+.med-section:nth-child(4) { animation-delay: 180ms; }
+.med-section:nth-child(5) { animation-delay: 240ms; }
+.med-section:nth-child(6) { animation-delay: 300ms; }
+.med-section:nth-child(7) { animation-delay: 360ms; }
+
+.med-section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: var(--shadow);
+  animation: fadeIn 0.35s ease both;
+  margin-bottom: 8px;
+  transition: box-shadow var(--transition), transform var(--transition);
+  opacity: 0; /* будет сброшено анимацией */
+}
+
+.med-section:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.med-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.med-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+}
+
+.med-section-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+/* Кнопки действий появляются при hover */
+.med-section:hover .med-section-actions {
+  opacity: 1;
+}
+
+.med-section-text {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  transition: opacity 0.3s ease;
+}
+
+/* Пустое состояние секции */
+.med-section-text.empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* ─── Заголовок блока медкарты ───────────────────────────────── */
+.medcard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.medcard-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.medcard-meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Кнопка Linked Evidence */
+.btn-evidence {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--primary);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  cursor: pointer;
+  font-family: var(--font);
+  font-weight: 500;
+  transition: background 0.2s;
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-evidence:hover {
+  background: rgba(37, 99, 235, 0.15);
+}
+
+/* Magic Edit мини-форма */
+.magic-edit-form {
+  margin-top: 8px;
+  display: none;
+  gap: 6px;
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.magic-edit-form.visible {
+  display: flex;
+}
+
+.magic-edit-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--card);
+}
+
+.magic-edit-input:focus {
+  outline: none;
+}
+
+/* ─── Блок Q&A ───────────────────────────────────────────────── */
+.qa-input-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.qa-input {
+  flex: 1;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.qa-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.qa-answer {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 40px;
+  border: 1px solid var(--border);
+}
+
+/* ─── Кнопки действий внизу ──────────────────────────────────── */
+.action-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  position: sticky;
+  bottom: 0;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.06);
+}
+
+/* Кнопка МИС — выделяем */
+#btnFillMIS {
+  font-size: 12px;
+}
+
+/* ─── Специальность — бейдж в хедере ────────────────────────── */
+.specialty-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--primary);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 6px;
+}
+
+/* ─── Пустое состояние медкарты ──────────────────────────────── */
+.medcard-empty {
+  text-align: center;
+  padding: 24px 16px;
+  color: var(--muted);
+}
+
+.medcard-empty-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.medcard-empty-text {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ─── Утилиты ────────────────────────────────────────────────── */
+.hidden {
+  display: none !important;
+}
+
+/* ─── Toast уведомления ──────────────────────────────────────── */
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-12px); }
+}
+
+.toast-container {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  left: 12px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: white;
+  animation: slideDown 0.25s ease forwards;
+  box-shadow: var(--shadow-md);
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toast.hiding {
+  animation: slideUp 0.25s ease forwards;
+}
+
+.toast-success { background: var(--success); }
+.toast-error   { background: var(--danger); }
+.toast-info    { background: var(--primary); }
+
+/* ─── День 7: Linked Evidence ─────────────────────────────── */
+
+/* Кнопка [▶ 0:14] в строке заголовка секции */
+.evidence-play-btn {
+  font-size: 11px !important;
+  padding: 3px 8px !important;
+  color: var(--primary) !important;
+  background: rgba(37, 99, 235, 0.07) !important;
+  border-radius: 20px !important;
+  font-weight: 600 !important;
+  gap: 3px !important;
+  letter-spacing: 0.01em;
+  transition: background var(--transition), color var(--transition) !important;
+}
+
+.evidence-play-btn:hover {
+  background: rgba(37, 99, 235, 0.18) !important;
+}
+
+/* Секция в активном воспроизведении */
+@keyframes playingPulse {
+  0%, 100% { border-color: rgba(37, 99, 235, 0.4); }
+  50%       { border-color: rgba(37, 99, 235, 0.9); }
+}
+
+.med-section.playing {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12), var(--shadow-md);
+  animation: playingPulse 1.4s ease-in-out infinite !important;
+}
+
+.med-section.playing .med-section-title {
+  color: var(--primary);
+}
+
+/* ─── Мини-плеер ───────────────────────────────────────────── */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.mini-player {
+  position: fixed;
+  bottom: 64px;      /* выше sticky action-buttons */
+  left: 12px;
+  right: 12px;
+  background: var(--text);
+  color: white;
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  animation: slideUp 0.25s ease;
+}
+
+.mini-player.visible {
+  display: flex;
+}
+
+.mini-player-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mini-player-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.mini-player-label {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.9;
+}
+
+.mini-player-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mini-player-progress {
+  flex: 1;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.mini-player-bar {
+  height: 100%;
+  background: white;
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.1s linear;
+}
+
+.mini-player-time {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+  min-width: 30px;
+  text-align: right;
+}
+
+.mini-player-stop {
+  background: rgba(255,255,255,0.15);
+  border: none;
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background var(--transition);
+}
+
+.mini-player-stop:hover {
+  background: rgba(255,255,255,0.28);
+}
+
+/* ─── День 8: Magic Edit full UX ────────────────────────────── */
+
+/* Подсказка под полем ввода */
+.magic-edit-hint {
+  font-size: 10px;
+  color: var(--muted);
+  text-align: right;
+  margin-top: 2px;
+}
+
+/* Карточка в состоянии загрузки Magic Edit */
+@keyframes magicShimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.med-section.magic-loading {
+  position: relative;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+.med-section.magic-loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(37, 99, 235, 0.10) 40%,
+    rgba(37, 99, 235, 0.18) 50%,
+    rgba(37, 99, 235, 0.10) 60%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: magicShimmer 1.2s ease-in-out infinite;
+  border-radius: var(--radius);
+}
+
+/* Эффект тайпрайтера — мигающий курсор */
+.typewriter-active::after {
+  content: '|';
+  display: inline-block;
+  animation: blink 0.6s step-end infinite;
+  color: var(--primary);
+  margin-left: 1px;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* Кнопка Undo после Magic Edit */
+.btn-undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-family: var(--font);
+  font-weight: 500;
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition), background var(--transition);
+}
+
+.btn-undo:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: rgba(220, 38, 38, 0.05);
+}
