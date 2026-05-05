@@ -13,9 +13,6 @@ const DEEPGRAM_PARAMS = {
   punctuate: 'true',
   interim_results: 'true',
   utterance_end_ms: '1000',
-  encoding: 'opus',
-  sample_rate: '16000',
-  channels: '1',
 };
 
 // Варианты произношения названия (для голосовых макросов)
